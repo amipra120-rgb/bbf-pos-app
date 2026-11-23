@@ -41,6 +41,7 @@ import androidx.webkit.WebViewAssetLoader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -204,8 +205,10 @@ public class MainActivity extends AppCompatActivity {
 
     private byte[] buildDrawerAndCutFooter() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(new byte[]{0x1B, 0x70, 0x00, 0x19, (byte) 0xFA});
-        baos.write(new byte[]{0x1B, 0x70, 0x01, 0x19, (byte) 0xFA});
+        try {
+            baos.write(new byte[]{0x1B, 0x70, 0x00, 0x19, (byte) 0xFA});
+            baos.write(new byte[]{0x1B, 0x70, 0x01, 0x19, (byte) 0xFA});
+        } catch (IOException ignored) {}
         return baos.toByteArray();
     }
 
