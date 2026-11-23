@@ -156,10 +156,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void triggerWebViewPrint() {
-        PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-        if (printManager != null) {
-            PrintDocumentAdapter adapter = webView.createPrintDocumentAdapter("BBF_POS_Receipt");
-            printManager.print("BBF_POS_Print", adapter, new PrintAttributes.Builder().build());
+        try {
+            PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+            if (printManager != null && webView != null) {
+                String jobName = "BBF_POS_Receipt";
+                PrintDocumentAdapter adapter = webView.createPrintDocumentAdapter(jobName);
+                PrintAttributes attributes = new PrintAttributes.Builder()
+                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                        .setResolution(new PrintAttributes.Resolution("pos_res", "POS Resolution", 300, 300))
+                        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                        .build();
+                printManager.print(jobName, adapter, attributes);
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Print error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
