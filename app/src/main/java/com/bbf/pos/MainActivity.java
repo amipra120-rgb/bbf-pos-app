@@ -58,25 +58,31 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver usbPermissionReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (ACTION_USB_PERMISSION.equals(intent.getAction())) {
-                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
-                boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
-                if (granted && device != null) {
-                    if (pendingPrintBytes != null) {
-                        byte[] data = pendingPrintBytes;
+            try {
+                if (ACTION_USB_PERMISSION.equals(intent.getAction())) {
+                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                    boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
+                    if (granted && device != null) {
+                        if (pendingPrintBytes != null) {
+                            byte[] data = pendingPrintBytes;
+                            pendingPrintBytes = null;
+                            pendingPrintText = null;
+                            sendBytesToUsbDevice(device, data);
+                        } else if (pendingPrintText != null) {
+                            String textToPrint = pendingPrintText;
+                            pendingPrintText = null;
+                            sendRawToUsbDevice(device, textToPrint);
+                        }
+                    } else {
                         pendingPrintBytes = null;
                         pendingPrintText = null;
-                        sendBytesToUsbDevice(device, data);
-                    } else if (pendingPrintText != null) {
-                        String textToPrint = pendingPrintText;
-                        pendingPrintText = null;
-                        sendRawToUsbDevice(device, textToPrint);
+                        Toast.makeText(MainActivity.this, "USB printer permission denied", Toast.LENGTH_SHORT).show();
                     }
-                } else {
-                    pendingPrintBytes = null;
-                    pendingPrintText = null;
-                    Toast.makeText(MainActivity.this, "USB printer permission denied", Toast.LENGTH_SHORT).show();
                 }
+            } catch (Exception e) {
+                pendingPrintBytes = null;
+                pendingPrintText = null;
+                Toast.makeText(MainActivity.this, "USB receiver error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         }
     };
@@ -119,7 +125,9 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                request.grant(request.getResources());
+                try {
+                    request.grant(request.getResources());
+                } catch (Exception ignored) {}
             }
         });
 
@@ -160,13 +168,15 @@ public class MainActivity extends AppCompatActivity {
 
     private void registerUsbPermissionReceiver() {
         if (usbReceiverRegistered) return;
-        IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(usbPermissionReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(usbPermissionReceiver, filter);
-        }
-        usbReceiverRegistered = true;
+        try {
+            IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(usbPermissionReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(usbPermissionReceiver, filter);
+            }
+            usbReceiverRegistered = true;
+        } catch (Exception ignored) {}
     }
 
     private void saveDataUrlToDownloads(String dataUrl, String mimeType) {
@@ -216,7 +226,9 @@ public class MainActivity extends AppCompatActivity {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             baos.write(new byte[]{0x1B, 0x40});
-            baos.write(text.getBytes(StandardCharsets.UTF_8));
+            if (text != null) {
+                baos.write(text.getBytes(StandardCharsets.UTF_8));
+            }
             baos.write("\n\n\n".getBytes(StandardCharsets.UTF_8));
             baos.write(new byte[]{0x1D, 0x56, 0x42, 0x00});
             baos.write(buildDrawerAndCutFooter());
@@ -272,28 +284,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void triggerUsbPrint(String text, byte[] rawBytes) {
-        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
-        UsbDevice device = findPrinterUsbDevice(usbManager);
-        if (device == null) {
-            runOnUiThread(() -> Toast.makeText(this, "USB / OTG printer connected nahi hai", Toast.LENGTH_SHORT).show());
-            return;
-        }
-        if (usbManager.hasPermission(device)) {
-            if (rawBytes != null) sendBytesToUsbDevice(device, rawBytes);
-            else sendRawToUsbDevice(device, text);
-        } else {
-            pendingPrintText = text;
-            pendingPrintBytes = rawBytes;
-            int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ? PendingIntent.FLAG_MUTABLE : 0;
-            PendingIntent pi = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), flags);
-            usbManager.requestPermission(device, pi);
+        try {
+            UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+            UsbDevice device = findPrinterUsbDevice(usbManager);
+            if (device == null) {
+                runOnUiThread(() -> Toast.makeText(this, "USB / OTG printer connected nahi hai", Toast.LENGTH_SHORT).show());
+                return;
+            }
+            if (usbManager.hasPermission(device)) {
+                if (rawBytes != null) sendBytesToUsbDevice(device, rawBytes);
+                else sendRawToUsbDevice(device, text);
+            } else {
+                pendingPrintText = text;
+                pendingPrintBytes = rawBytes;
+                int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ? PendingIntent.FLAG_MUTABLE : 0;
+                PendingIntent pi = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), flags);
+                usbManager.requestPermission(device, pi);
+            }
+        } catch (Exception e) {
+            runOnUiThread(() -> Toast.makeText(this, "USB trigger error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
     }
 
     public class AndroidPOSBridge {
         @JavascriptInterface
         public void printUsbRaw(final String text) {
-            runOnUiThread(() -> triggerUsbPrint(text, null));
+            runOnUiThread(() -> {
+                try {
+                    triggerUsbPrint(text, null);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Print error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
         }
 
         @JavascriptInterface
@@ -326,21 +348,23 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void requestPermissions(String requested) {
             runOnUiThread(() -> {
-                List<String> needed = new ArrayList<>();
-                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    needed.add(Manifest.permission.CAMERA);
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        needed.add(Manifest.permission.BLUETOOTH_CONNECT);
+                try {
+                    List<String> needed = new ArrayList<>();
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        needed.add(Manifest.permission.CAMERA);
                     }
-                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                        needed.add(Manifest.permission.BLUETOOTH_SCAN);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                            needed.add(Manifest.permission.BLUETOOTH_CONNECT);
+                        }
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                            needed.add(Manifest.permission.BLUETOOTH_SCAN);
+                        }
                     }
-                }
-                if (!needed.isEmpty()) {
-                    ActivityCompat.requestPermissions(MainActivity.this, needed.toArray(new String[0]), 101);
-                }
+                    if (!needed.isEmpty()) {
+                        ActivityCompat.requestPermissions(MainActivity.this, needed.toArray(new String[0]), 101);
+                    }
+                } catch (Exception ignored) {}
             });
         }
     }
