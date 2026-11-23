@@ -297,8 +297,10 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 pendingPrintText = text;
                 pendingPrintBytes = rawBytes;
+                Intent usbIntent = new Intent(ACTION_USB_PERMISSION);
+                usbIntent.setPackage(getPackageName());
                 int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ? PendingIntent.FLAG_MUTABLE : 0;
-                PendingIntent pi = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), flags);
+                PendingIntent pi = PendingIntent.getBroadcast(this, 0, usbIntent, flags);
                 usbManager.requestPermission(device, pi);
             }
         } catch (Exception e) {
