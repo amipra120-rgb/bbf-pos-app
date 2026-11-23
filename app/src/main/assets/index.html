@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>BBF POS</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #2563eb;
+      --green: #16a34a;
+      --danger: #dc2626;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+      overscroll-behavior-y: none;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .header h1 { margin: 0; font-size: 18px; }
+    .sub { font-size: 12px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    @media (min-width: 768px) {
+      .grid { grid-template-columns: 1.2fr 1fr; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    input, select, button {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 10px;
+      font-size: 14px;
+    }
+    input, select {
+      background: var(--bg);
+      color: var(--text);
+      flex: 1;
+      min-width: 110px;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.green { background: var(--green); }
+    button.red { background: var(--danger); }
+    button.secondary { background: #334155; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--border); padding: 8px 4px; text-align: left; }
+    .total-box {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .qr-box {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--bg);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #0f172a;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>BBF POS</h1>
+      <div class="sub">Big Boy's Fashion • Billing &amp; Stock</div>
+    </div>
+    <span class="pill" id="statusPill">Ready</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row">
+        <input id="itemName" type="text" placeholder="Item / Barcode / SKU" />
+        <input id="itemPrice" type="number" placeholder="Price (₹)" min="1" />
+        <input id="itemQty" type="number" value="1" min="1" style="max-width:75px;" />
+        <button onclick="addItem()">Add</button>
+      </div>
+      <div class="row">
+        <input id="customerPhone" type="tel" placeholder="Customer Mobile (Optional)" />
+        <input id="upiId" type="text" placeholder="UPI ID (e.g. bbf@upi)" />
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Rate</th>
+            <th>Amt</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+      </table>
+
+      <div class="total-box">
+        <span>Total</span>
+        <span id="grandTotal">₹0</span>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button class="green" style="flex:1;" onclick="completeBill()">Generate Bill &amp; QR</button>
+        <button class="secondary" onclick="clearCart()">Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <strong>Payment &amp; Recent Bills</strong>
+        <button class="secondary" onclick="exportSales()">Export JSON</button>
+      </div>
+      <div class="qr-box" id="upiBox">
+        Enter UPI ID and generate bill for UPI payment string.
+      </div>
+      <div id="billsList" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+  </div>
+
+  <script>
+
+    
